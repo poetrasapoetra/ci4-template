@@ -7,6 +7,7 @@ use CodeIgniter\HTTP\CLIRequest;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Services;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -35,13 +36,15 @@ abstract class BaseController extends Controller
      *
      * @var array
      */
-    protected $helpers = [];
+    protected $helpers = ['response_template'];
 
     /**
      * Be sure to declare properties for any property fetch you initialized.
      * The creation of dynamic property is deprecated in PHP 8.2.
      */
-    // protected $session;
+    protected $session;
+    protected $viewData = [];
+    protected array $supportedLocales = [];
 
     /**
      * Constructor.
@@ -51,8 +54,58 @@ abstract class BaseController extends Controller
         // Do Not Edit This Line
         parent::initController($request, $response, $logger);
 
-        // Preload any models, libraries, etc, here.
+        if (session_status() == PHP_SESSION_NONE) {
+            $this->session = Services::session();
+        }
 
-        // E.g.: $this->session = \Config\Services::session();
+        date_default_timezone_set($_ENV["time.default_timezone"] ?? "UCT");
+        $this->supportedLocales = $request->config->supportedLocales;
+        $this->assignViewData([
+            'locale' => $this->getLocale(),
+            'supportedLocales' => $this->supportedLocales,
+        ]);
+    }
+    public function assignViewData($data, $value = null)
+    {
+        if (is_array($data) && is_null($value)) {
+            $this->viewData = array_merge($this->viewData, $data);
+            return $this;
+        }
+        if (is_string($data)) {
+            $this->viewData[$data] = $value;
+            return $this;
+        }
+    }
+
+    public function subView(string $view, array $data = [])
+    {
+        $this->assignViewData([
+            "childView" => $view,
+            "dataView" => $data
+        ]);
+        return $this;
+    }
+    /**
+     * **Same as function view but always add $viewData to view
+     */
+    public function showView(string $view, $data = null, $option = [])
+    {
+        if (is_array($data)) {
+            $this->assignViewData($data);
+        }
+        $this->assignViewData("locale", $this->getLocale());
+        return view($view, $this->viewData);
+    }
+
+    public function getLocale()
+    {
+        $language = Services::language();
+        $activeLocale = $language->getLocale();
+        return $activeLocale;
+    }
+
+    function setLocale($lang)
+    {
+        Services::language($lang);
     }
 }
