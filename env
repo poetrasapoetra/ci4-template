@@ -1,0 +1,15 @@
+# CI_ENVIRONMENT = production
+# app.baseURL = ''
+# app.forceGlobalSecureRequests = false
+
+# database.default.hostname = localhost
+# database.default.database = ci4
+# database.default.username = root
+# database.default.password = root
+# database.default.DBDriver = MySQLi
+# database.default.DBPrefix =
+# database.default.port = 3306
+
+# encryption.key =
+
+# logger.threshold = 4
