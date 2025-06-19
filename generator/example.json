@@ -1,0 +1,38 @@
+{
+  "$schema": "./schema.json",
+  "name": "user",
+  "class_name": "User",
+  "fields": [
+    {
+      "name": "user_id",
+      "type": "BINARY",
+      "length": 16,
+      "index": true
+    },
+    {
+      "name": "username",
+      "type": "VARCHAR",
+      "length": 30,
+      "unique": true,
+      "index": true,
+      "collation": "utf8mb4_bin"
+    },
+    {
+      "name": "password",
+      "type": "VARCHAR",
+      "length": 255
+    },
+    {
+      "name": "authority",
+      "type": "ENUM",
+      "enums": ["Admin", "User", "Guest"]
+    },
+    {
+      "name": "status",
+      "type": "ENUM",
+      "enums": ["inactive", "active", "suspended", "deleted"]
+    },
+    { "preset": "ced_timestamp" }
+  ],
+  "primaryKey": ["user_id"]
+}
