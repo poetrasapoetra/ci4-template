@@ -113,17 +113,17 @@ foreach ($data['fields'] as $field) {
 
     if (in_array($type, ['INT', 'BIGINT', 'TINYINT', 'SMALLINT', 'MEDIUMINT'])) {
         $phpType = 'int';
-        $default = '0';
+        $phpDefault = '0';
     } elseif (in_array($type, ['FLOAT', 'DOUBLE', 'DECIMAL'])) {
         $phpType = 'float';
-        $default = '0';
+        $phpDefault = '0';
     }
     $fieldDef = ['type' => $type];
 
     if ($nullable) {
-        $fieldDef["null"] = $null;
+        $fieldDef["null"] = true;
         $phpType = "?$phpType";
-        $default = "null";
+        $phpDefault = "null";
     }
     if ($type === 'BINARY' && ($field['length'] ?? 0) == 16) {
         $uuidFields[] = $name;
