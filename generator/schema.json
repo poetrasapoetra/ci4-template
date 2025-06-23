@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/poetrasapoetra/ci4-template/blob/main/generator/schema.json",
+  "$id": "https://github.com/poetrasapoetra/generator.schema.json",
   "title": "CI4-template generator base schema",
   "description": "Defines a generic MySQL table structure for generating CodeIgniter 4 models and migrations.",
   "type": "object",
@@ -34,6 +34,20 @@
         "type": "string"
       },
       "description": "List of column names composing the primary key"
+    },
+    "foreignKey": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "ref_table", "ref_field", "onupdate", "ondelete"],
+        "properties": {
+          "field": { "type": "string" },
+          "ref_table": { "type": "string" },
+          "ref_field": { "type": "string" },
+          "onupdate": { "type": "string", "enum": ["cascade", "set null"] },
+          "ondelete": { "type": "string", "enum": ["cascade", "set null"] }
+        }
+      }
     },
     "indexes": {
       "type": "array",

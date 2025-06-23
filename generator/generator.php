@@ -197,6 +197,16 @@ if (!empty($data['indexes']) && is_array($data['indexes'])) {
         $indexLines .= ")";
     }
 }
+$foreignKeys = [];
+if (!empty($data["foreignKey"]) && is_array($data["foreignKey"])) {
+    foreach ($data["foreignKey"] as $fk) {
+        $foreignKeys[] = addIndentLine(3, "->addForeignKey(\"" . implode("\", \"", [$fk["field"], $fk["ref_table"], $fk["ref_field"], $fk["onupdate"], $fk["ondelete"]]) . "\")", false);
+    }
+}
+$foreignKeyLine = "";
+if (count($foreignKeys) > 0) {
+    $foreignKeyLine = "\n" . implode("\n", $foreignKeys);
+}
 $migrationContent = <<<PHP
 <?php
 
@@ -211,7 +221,7 @@ class {$className}Migration extends Migration
     {
         \$fields = {$fieldsExport};
         \$this->forge->addField(\$fields)
-            {$primaryKeyLine}{$indexLines}
+            {$primaryKeyLine}{$foreignKeyLine}{$indexLines}
             ->createTable(\$this->table, true);
     }
 
