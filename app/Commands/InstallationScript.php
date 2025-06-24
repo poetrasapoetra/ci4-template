@@ -173,7 +173,7 @@ class InstallationScript
         }
 
         if ($addUser) {
-            if (!$data->doInsert()) $task_done += 1;
+            if (!$data->doInsert($this->verbose)) $task_done += 1;
             $this->progress($task_done, $total_task);
         }
 

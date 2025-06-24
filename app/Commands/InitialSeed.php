@@ -105,32 +105,35 @@ class InitialSeed
         return strlen($stripped);
     }
 
-    function doInsert()
+    function doInsert(bool $verbose)
     {
 
         $db = Database::connect($this->dbGroup);
         var_dump($this->data);
         CLI::newLine(4);
         $error = false;
-        // $user = DataUser::fromArray([
-        //         "card_id" => $key,
-        //         "name" => $name,
-        //         "authority" => DataUser::AUTHORITY_SUPER,
-        //     ]);
-        //     $m = new ModelUser();
-        //     $error = $m->addUser($user) < 1;
-        //     if ($this->verbose) {
-        //         CLI::newLine(1);
-        //         fwrite(STDOUT, "\033[3A");
-        //         fwrite(STDOUT, "\033[2K");
-        //         if (!$error) {
-        //             CLI::write("✔ Inserting '$name' as superadmin [complete]", 'green');
-        //         } else {
-        //             CLI::write("🞫 Inserting '$name' as superadmin [failed]", 'red');
-        //         }
-        //         fwrite(STDOUT, "\033[2K");
-        //         fwrite(STDOUT, "\033[4B");
+        $errorMessage = "";
+        // $user = DataUser::fromArray((array)$this->data);
+        // $user->status = DataUser::STATUS_ACTIVE;
+        // $user->authority = DataUser::AUTHORITY_ADMIN;
+        // try {
+        //     $db->table("user")->insert($user->getInsertData());
+        // } catch (Exception $e) {
+        //     $error = true;
+        //     $errorMessage = $e->getMessage();
+        // }
+        // if ($verbose) {
+        //     CLI::newLine(1);
+        //     fwrite(STDOUT, "\033[3A");
+        //     fwrite(STDOUT, "\033[2K");
+        //     if (!$error) {
+        //         CLI::write("✔ Inserting '{$user->username}' as admin [complete]", 'green');
+        //     } else {
+        //         CLI::write("🞫 Inserting '{$user->username}' as admin [failed]: $errorMessage", 'red');
         //     }
+        //     fwrite(STDOUT, "\033[2K");
+        //     fwrite(STDOUT, "\033[4B");
+        // }
         return $error;
     }
 }
