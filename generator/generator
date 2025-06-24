@@ -1,0 +1,338 @@
+<?php
+
+define("BASE_DIR", realpath(__DIR__ . "/../"));
+date_default_timezone_set('Asia/Jakarta');
+
+function addIndentLine(int $count, string $data, bool $newLine = true)
+{
+    return str_repeat(" ", 4 * $count) . $data . ($newLine ? "\n" : "");
+}
+
+function exportFields(array $fields): string
+{
+    $php = "[\n";
+
+    foreach ($fields as $key => $definition) {
+        $php .= addIndentLine(3, '"' . $key . '" => [');
+        $indentCount = 4;
+        foreach ($definition as $k => $v) {
+            $str = (is_numeric($k) ? $k : '"' . $k . '"') . " => ";
+            if (is_array($v)) {
+                $str .= '[' . implode(', ', array_map(fn($val) => '"' . $val . '"', $v)) . ']';
+            } elseif (is_bool($v)) {
+                $str .= $v ? 'true' : 'false';
+            } elseif (is_null($v)) {
+                $str .= 'null';
+            } elseif (is_numeric($v)) {
+                $str .= $v;
+            } else {
+                $str .= '"' . addslashes($v) . '"';
+            }
+            $str .= ",";
+            $php .= addIndentLine($indentCount, $str);
+        }
+        $php = rtrim($php, ",");
+        $php .= addIndentLine(3, "],");
+    }
+    $php = rtrim($php, ",");
+    $php .= addIndentLine(2, "]", false);
+    return $php;
+}
+
+
+function doGenerate(string $jsonFile, int $offset = 0)
+{
+    echo "Processing $jsonFile \n";
+
+    if (!file_exists($jsonFile)) {
+        echo "JSON schema file not found: $jsonFile\n";
+        return false;
+    }
+
+    $data = json_decode(file_get_contents($jsonFile), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        echo "Error parsing JSON:" . json_last_error_msg() . "\n";
+        return false;
+    }
+
+    $className = $data['class_name'] ?? exit("Missing class_name in JSON\n");
+    $tableName = $data['name'] ?? exit("Missing table name\n");
+    $timestamp = date('Y-m-d-His', time() + $offset);
+    $migrationFileName = "{$className}Migration.php";
+    $migrationBasePath = BASE_DIR . "/app/Database/Migrations";
+    $migrationPath = "$migrationBasePath/{$timestamp}_$migrationFileName";
+    $dataClassPath = BASE_DIR . "/app/Models/DataModels/Data{$className}.php";
+    $migrationExist = false;
+    $dataClassExist = false;
+    if (!empty(glob("$migrationBasePath/*_$migrationFileName"))) {
+        $migrationExist = true;
+    }
+    if (file_exists($dataClassPath)) {
+        $dataClassExist = true;
+    }
+    if ($dataClassExist && $migrationExist) {
+        echo "Target file exist\n";
+        return false;
+    }
+
+
+    $useTimestamp = false;
+    $useCedTimestamp = false;
+    $uuidFields = [];
+    $enumConstants = [];
+    $properties = [];
+    $fields = [];
+    $timestampFields = [];
+    foreach ($data['fields'] as $field) {
+        if (isset($field['preset']) && $field['preset'] === 'ced_timestamp') {
+            $fields['created_at'] = [
+                'type' => 'BIGINT',
+                'unsigned' => true,
+            ];
+            $fields['updated_at'] = [
+                'type' => 'BIGINT',
+                'unsigned' => true,
+                'null' => true
+            ];
+            $fields['deleted_at'] = [
+                'type' => 'BIGINT',
+                'unsigned' => true,
+                'null' => true
+            ];
+            $useTimestamp = true;
+            $useCedTimestamp = true;
+            continue;
+        }
+        $name = $field['name'];
+        $type = $field['type'] ?? 'VARCHAR';
+        $nullable = $field['nullable'] ?? false;
+        $phpType = "string";
+        $phpDefault = '""';
+        $isIntegerTimestamp = (bool)($field["is_integer_timestamp"] ?? false);
+
+        if (in_array($type, ['INT', 'BIGINT', 'TINYINT', 'SMALLINT', 'MEDIUMINT'])) {
+            $phpType = 'int';
+            $phpDefault = '0';
+            if ($isIntegerTimestamp) {
+                $useTimestamp = true;
+                $timestampFields[] = $name;
+                if (!$nullable) $phpDefault = "-1";
+            }
+        } elseif (in_array($type, ['FLOAT', 'DOUBLE', 'DECIMAL'])) {
+            $phpType = 'float';
+            $phpDefault = '0';
+        }
+        $fieldDef = ['type' => $type];
+
+        if ($nullable) {
+            $fieldDef["null"] = true;
+            $phpType = "?$phpType";
+            $phpDefault = "null";
+        }
+        if ($type === 'BINARY' && ($field['length'] ?? 0) == 16) {
+            $uuidFields[] = $name;
+        }
+
+        if (isset($field['length'])) {
+            $fieldDef['constraint'] = $field['length'];
+        }
+
+        if ($field['type'] === 'ENUM' && isset($field['enums'])) {
+            $fieldDef['constraint'] = $field['enums'];
+            $_i = 0;
+            foreach ($field['enums'] as $enumVal) {
+                $const = strtoupper(preg_replace('/[^A-Za-z0-9]+/', '_', $enumVal));
+                $constName = strtoupper($name) . "_" . $const;
+                if ($_i == 0) {
+                    $phpDefault = "self::$constName";
+                }
+                $enumConstants[] = addIndentLine(1, "public const " . $constName . " = \"$enumVal\";");
+                $_i++;
+            }
+            $enumConstants[] = "\n";
+        }
+
+        if (!empty($field['unsigned'])) {
+            $fieldDef['unsigned'] = true;
+        }
+
+        if (!empty($field['unique'])) {
+            $fieldDef['unique'] = true;
+        }
+
+        if (array_key_exists('default', $field)) {
+            $fieldDef['default'] = $field['default'];
+        }
+
+        $fields[$name] = $fieldDef;
+        $properties[] = addIndentLine(1, "public $phpType \$$name = $phpDefault;");
+    }
+    $hasPrimaryKey = isset($data['primaryKey']) && count($data['primaryKey']) > 0;
+    $primaryKeyLine = '';
+    if ($hasPrimaryKey) {
+        $primaryKey = $data['primaryKey'][0]; // Use only the first key
+        $primaryKeyLine = "->addPrimaryKey(\"{$primaryKey}\")";
+    }
+
+    $fieldsExport = exportFields($fields);
+
+    $indexLines = '';
+    $addedFields = []; // Prevent duplicate addKey for same field(s)
+    if (!empty($data['indexes']) && is_array($data['indexes'])) {
+        foreach ($data['indexes'] as $index) {
+            $fields = $index['fields'];
+            $unique = !empty($index['unique']);
+
+            // Skip if we've already added same key for these fields
+            $keySignature = implode(',', $fields);
+            if (in_array($keySignature, $addedFields)) {
+                continue;
+            }
+            $addedFields[] = $keySignature;
+
+            $fieldExport = count($fields) === 1
+                ? var_export($fields[0], true)
+                : "[\"" . implode("\", \"", $fields) . "\"]";
+
+            $indexLines .= "\n            ->addKey({$fieldExport}, false";
+            if ($unique) {
+                $indexLines .= ", true";
+            }
+            $indexLines .= ")";
+        }
+    }
+    $foreignKeys = [];
+    if (!empty($data["foreignKey"]) && is_array($data["foreignKey"])) {
+        foreach ($data["foreignKey"] as $fk) {
+            $foreignKeys[] = addIndentLine(3, "->addForeignKey(\"" . implode("\", \"", [$fk["field"], $fk["ref_table"], $fk["ref_field"], $fk["onupdate"], $fk["ondelete"]]) . "\")", false);
+        }
+    }
+    $foreignKeyLine = "";
+    if (count($foreignKeys) > 0) {
+        $foreignKeyLine = "\n" . implode("\n", $foreignKeys);
+    }
+    $migrationContent = <<<PHP
+<?php
+
+namespace App\Database\Migrations;
+
+use CodeIgniter\Database\Migration;
+
+class {$className}Migration extends Migration
+{
+    private \$table = "{$tableName}";
+    public function up()
+    {
+        \$fields = {$fieldsExport};
+        \$this->forge->addField(\$fields)
+            {$primaryKeyLine}{$foreignKeyLine}{$indexLines}
+            ->createTable(\$this->table, true);
+    }
+
+    public function down()
+    {
+        \$this->forge->dropTable(\$this->table, true);
+    }
+}
+PHP;
+
+    // 7. Write file
+    if (!is_dir(dirname($migrationPath))) {
+        mkdir(dirname($migrationPath), 0755, true);
+    }
+    if (!$migrationExist) {
+        file_put_contents($migrationPath, $migrationContent);
+        echo "Migration created: $migrationPath\n";
+    } else {
+        echo "Migration already exist\n";
+    }
+
+    if ($useCedTimestamp) {
+        $properties[] = "\n";
+        $properties[] = addIndentLine(1, "public ?int \$created_at = null;");
+        $properties[] = addIndentLine(1, "public ?int \$updated_at = null;");
+        $properties[] = addIndentLine(1, "public ?int \$deleted_at = null;");
+    }
+    $baseClass = $uuidFields ? 'DataUuid' : 'DataModel';
+    $traitUse = $useTimestamp ? addIndentLine(1, "use DataTimeTrait;") : "";
+    $output = "<?php\n\nnamespace App\\Models\\DataModels;\n\nclass Data$className extends $baseClass\n{\n$traitUse";
+    if ($enumConstants) {
+        $output .= "\n" . implode("", $enumConstants);
+    }
+
+    $output .= implode("", $properties);
+    // UUID method
+    if ($uuidFields) {
+        $array = implode(', ', array_map(fn($v) => "\"$v\"", $uuidFields));
+        $output .= "\n" . addIndentLine(1, "public function getUuidFields(): array")
+            . addIndentLine(1, "{")
+            . addIndentLine(2, "return [$array];")
+            . addIndentLine(1, "}");
+    }
+
+    if ($useTimestamp || $uuidFields) {
+        $output .= "\n" .
+            addIndentLine(1, "public static function fromArray(array \$data): static")
+            . addIndentLine(1, "{");
+        if ($useTimestamp) {
+            $tsField = implode("\", \"", array_merge($useCedTimestamp ? ["created_at"] : [], $timestampFields));
+
+            $output .= addIndentLine(2, "self::ensureTime([\"$tsField\"], \$data);");
+        }
+        $output .= addIndentLine(2, "\$instance = parent::fromArray(\$data);");
+        if ($uuidFields) {
+            $output .= addIndentLine(2, "\$instance->ensureUuid();");
+        }
+        $output .= addIndentLine(2, "return \$instance;") . addIndentLine(1, "}");
+    }
+
+    $output .= "}\n";
+
+    if (!$dataClassExist) {
+        file_put_contents($dataClassPath, $output);
+        echo "DataModel created: $dataClassPath\n";
+    } else {
+        echo "DataModel already exist\n";
+    }
+}
+
+function printHelp()
+{
+    echo "Generate migration and data model file using json file\n";
+    echo "Usage: \nphp generator <option>\nOptions:\n";
+    echo "-a        : Generate using all json file inside generator exclude schema.json.\n";
+    echo "            Migration timestamp will be generated based on file name order, make \n";
+    echo "            sure file name is ordered e.g. use numeric prefix.\n";
+    echo "[filename]: Generate use single file as template.\n";
+    echo "-h        : Show this help\n";
+}
+
+
+if ($argc < 2) {
+    echo "Usage: php generator.php <filename>\n";
+    exit(10);
+}
+
+
+$inputFile = $argv[1];
+
+
+
+$BASE_DIR = realpath(__DIR__);
+if ($inputFile == "-a") {
+    $files = array_diff(glob("$BASE_DIR/*"), ["$BASE_DIR/generator.php", "$BASE_DIR/schema.json"]);
+    $i = 0;
+    foreach ($files as $path) {
+        doGenerate($path, $i++);
+    }
+} else if ($inputFile == "-h") {
+    printHelp();
+} else {
+    // check if input file is absolute
+    if ($inputFile[0] == "/") {
+        doGenerate($inputFile);
+    } else {
+        // if relative, use cwd as base path
+        doGenerate(getcwd() . "/$inputFile");
+    }
+}
