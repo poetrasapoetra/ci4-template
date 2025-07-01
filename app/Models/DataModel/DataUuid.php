@@ -54,4 +54,15 @@ abstract class DataUuid extends DataModel
         $instance->ensureUuid();
         return $instance;
     }
+
+    public function getInsertData(): array
+    {
+        $data = parent::getInsertData();
+        foreach ($this->getUuidFields() as $f) {
+            if (array_key_exists($f, $data)) {
+                $data[$f] = $this->getByteUuid($f);
+            }
+        }
+        return $data;
+    }
 }
