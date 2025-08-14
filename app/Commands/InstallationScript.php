@@ -46,7 +46,7 @@ class InstallationScript
     {
         $MAX_BAR = 50;
         if (!$new) {
-            fwrite(STDOUT, "\033[2A");
+            fwrite(STDOUT, "\033[1A");
         } else {
             fwrite(STDOUT, "\x1B[2K");
         }
@@ -92,7 +92,7 @@ class InstallationScript
             CLI::newLine(2);
             return;
         }
-        CLI::newLine(4);
+        CLI::newLine(3);
         $this->progress($task_done, $total_task);
         $batch = $runner->getLastBatch() + 1;
         foreach ($migrations as $m) {
@@ -116,13 +116,16 @@ class InstallationScript
                 fwrite(STDOUT, "\033[3A");
                 CLI::write("✔ Running migration '$m->class' [complete]", "green");
                 fwrite(STDOUT, "\033[2K");
-                CLI::newLine(3);
+                CLI::newLine(2);
             }
             $this->progress($task_done, $total_task);
         }
+        if (count($seeds) > 0) {
+            CLI::newLine(1);
+        }
         foreach ($seeds as $s) {
             if ($this->verbose) {
-                fwrite(STDOUT, "\033[2A");
+                fwrite(STDOUT, "\033[3A");
                 fwrite(STDOUT, "\033[2K");
                 CLI::write("◯ Seeding table '" . $s->getTable() . "'", 'yellow');
                 CLI::newLine(2);
@@ -151,7 +154,7 @@ class InstallationScript
                         } else {
                             CLI::write(sprintf("⮿ Seeding table '%s' [%.2f%%]", $s->getTable(), $percent), 'red');
                         }
-                        CLI::newLine(2);
+                        CLI::newLine(1);
                         $this->progress($task_done, $total_task);
                     }
                 }
@@ -167,7 +170,7 @@ class InstallationScript
                     CLI::write(sprintf("🞫 Seeding table '%s'", $s->getTable(), $percent), 'red');
                 }
                 fwrite(STDOUT, "\033[2K");
-                fwrite(STDOUT, "\033[4B");
+                fwrite(STDOUT, "\033[1B");
             }
             $this->progress($task_done, $total_task);
         }

@@ -49,7 +49,7 @@ class Install extends BaseCommand
         if ($verbose) {
             fwrite(STDOUT, "\033[2A");
             fwrite(STDOUT, "\033[0J");
-            CLI::newLine(2);
+            CLI::newLine(1);
         }
         CLI::write("Installation complete", "light_cyan");
     }

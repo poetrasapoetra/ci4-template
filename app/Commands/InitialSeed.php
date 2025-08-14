@@ -22,9 +22,10 @@ class InitialSeed
     function __construct(string $dbGroup)
     {
         $this->dbGroup = $dbGroup;
+        $appname = getenv("app.name");
         $this->prompt = [
             "username" => [
-                "prompt" => CLI::color(sprintf("%s admin username", getenv("app.name") ?? "Application"), "light_cyan"),
+                "prompt" => CLI::color(sprintf("%s admin username", $appname ? $appname : "Application"), "light_cyan"),
                 "type" => "text",
                 "required" => true,
                 "default" => null
@@ -115,7 +116,7 @@ class InitialSeed
         $errorMessage = "";
         // $user = DataUser::fromArray((array)$this->data);
         // $user->status = DataUser::STATUS_ACTIVE;
-        // $user->authority = DataUser::AUTHORITY_ADMIN;
+        // $user->role = DataUser::ROLE_ADMIN;
         // try {
         //     $db->table("user")->insert($user->getInsertData());
         // } catch (Exception $e) {
@@ -123,8 +124,7 @@ class InitialSeed
         //     $errorMessage = $e->getMessage();
         // }
         // if ($verbose) {
-        //     CLI::newLine(1);
-        //     fwrite(STDOUT, "\033[3A");
+        //     fwrite(STDOUT, "\033[2A");
         //     fwrite(STDOUT, "\033[2K");
         //     if (!$error) {
         //         CLI::write("✔ Inserting '{$user->username}' as admin [complete]", 'green');
@@ -132,7 +132,7 @@ class InitialSeed
         //         CLI::write("🞫 Inserting '{$user->username}' as admin [failed]: $errorMessage", 'red');
         //     }
         //     fwrite(STDOUT, "\033[2K");
-        //     fwrite(STDOUT, "\033[4B");
+        //     fwrite(STDOUT, "\033[2B");
         // }
         return $error;
     }
